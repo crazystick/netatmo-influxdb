@@ -9,7 +9,10 @@ CLIENT_SECRET = ''
 NETATMO_USERNAME = ''
 NETATMO_PASSWORD = ''
 
-_ALLOWED_TYPES = ('Temperature', 'CO2', 'Humidity', 'Pressure', 'Noise', 'Rain', 'WindStrength', 'WindAngle', 'GustStrenght', 'GustAngle')
+INFLUX_DB_NAME = ''
+EARLIEST_DATA = 0
+
+_ALLOWED_TYPES = ('Temperature', 'CO2', 'Humidity', 'Pressure', 'Noise', 'Rain', 'WindStrength', 'WindAngle', 'GustStrength', 'GustAngle')
 
 
 def getAccessToken():
@@ -91,8 +94,8 @@ def printStation(station):
 
 def getInfluxDBClient():
     client = InfluxDBClient()
-    if {'name': 'netatmo'} not in client.get_list_database():
-        client.create_database('netatmo')
+    if {'name': INFLUX_DB_NAME} not in client.get_list_database():
+        client.create_database(INFLUX_DB_NAME)
 
     return client
 
@@ -116,9 +119,9 @@ def iterateStations(access_token):
 
 def fetchMeasurements(access_token, device_id, module_id, measurement_type, station_name, module_name, client, last_update):
     get_latest_timestamp_query = "SELECT value FROM %s WHERE station='%s' AND module='%s' ORDER BY time DESC LIMIT 1"%(measurement_type, station_name, module_name)
-    result = client.query(get_latest_timestamp_query, database='netatmo')
+    result = client.query(get_latest_timestamp_query, database=INFLUX_DB_NAME)
 
-    time = 0
+    time = EARLIEST_DATA
     points = result.get_points()
     for point in points:
         time = int(datetime.strptime(point['time'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).timestamp())
@@ -158,7 +161,7 @@ def fetchMeasurements(access_token, device_id, module_id, measurement_type, stat
     if client.write_points(
         data,
         time_precision='s',
-        database='netatmo'
+        database=INFLUX_DB_NAME
     ):
         print('%i points written - %s, %s, %s - start %s - end %s'%(len(data), station_name, module_name, measurement_type, datetime.fromtimestamp(min_time).isoformat(), datetime.fromtimestamp(max_time).isoformat()))
         if len(data) == 1024:
